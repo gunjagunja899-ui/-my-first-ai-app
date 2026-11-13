@@ -1,6 +1,6 @@
-
 import streamlit as st
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 st.title("My First AI App")
 
@@ -11,7 +11,7 @@ age = st.number_input("Enter your age", min_value=1, max_value=100, step=1)
 
 if st.button("Submit"):
 
-    current_hour = datetime.now().hour
+    current_hour = datetime.now(ZoneInfo("Asia/Kolkata")).hour
 
     if current_hour < 12:
         greeting = "Good Morning"
