@@ -18,12 +18,13 @@ if st.button("Ask AI"):
     if question:
         with st.spinner("AI is thinking..."):
             try:
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=question
+                response = client.interactions.create(
+                    model="gemini-3.8-flash",
+                    input=question
                 )
-                st.write(response.text)
+                st.write(response.output_text)
+
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
-        st.warning("Please enter a question.")
+        st.warning("Please enter your question.")
