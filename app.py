@@ -5,27 +5,18 @@ from sqlalchemy import create_engine, text
 from transformers import pipeline
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-st.set_page_config(
-    page_title="MoodMentor",
-    page_icon="🌿",
-    layout="centered"
-)
+st.set_page_config(page_title="MoodMentor", page_icon="🌿", layout="centered")
 
 st.title("🌿 MoodMentor")
 st.subheader("AI-Based Employee Wellness Management Platform")
 st.write("Understand your emotions and explore wellness suggestions.")
 
-# Database connection
 @st.cache_resource
 def get_engine():
-    return create_engine(
-        st.secrets["DATABASE_URL"],
-        pool_pre_ping=True
-    )
+    return create_engine(st.secrets["DATABASE_URL"], pool_pre_ping=True)
 
 engine = get_engine()
 
-# Load emotion model
 @st.cache_resource
 def load_model():
     return pipeline(
@@ -33,7 +24,6 @@ def load_model():
         model="bhadresh-savani/distilbert-base-uncased-emotion"
     )
 
-# Create database tables if needed
 with engine.begin() as conn:
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS app_users (
@@ -61,11 +51,9 @@ with engine.begin() as conn:
         )
     """))
 
-# Session state
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
 
-# Login and registration
 if st.session_state.user_id is None:
     tab1, tab2 = st.tabs(["Login", "Register"])
 
@@ -80,9 +68,7 @@ if st.session_state.user_id is None:
                     {"u": username}
                 ).fetchone()
 
-            if user and bcrypt.checkpw(
-                password.encode(), user.password_hash.encode()
-            ):
+            if user and bcrypt.checkpw(password.encode(), user.password_hash.encode()):
                 st.session_state.user_id = user.id
                 st.rerun()
             else:
@@ -93,20 +79,15 @@ if st.session_state.user_id is None:
         new_pass = st.text_input("Create password", type="password", key="new_pass")
 
         if st.button("Create account"):
-            if not new_user or len(new_pass) < 8:
+            if not new_user.strip() or len(new_pass) < 8:
                 st.warning("Enter a username and password of at least 8 characters.")
             else:
-                hashed = bcrypt.hashpw(
-                    new_pass.encode(), bcrypt.gensalt()
-                ).decode()
+                hashed = bcrypt.hashpw(new_pass.encode(), bcrypt.gensalt()).decode()
                 try:
                     with engine.begin() as conn:
                         conn.execute(
-                            text("""
-                                INSERT INTO app_users(username,password_hash)
-                                VALUES (:u,:p)
-                            """),
-                            {"u": new_user, "p": hashed}
+                            text("INSERT INTO app_users(username,password_hash) VALUES (:u,:p)"),
+                            {"u": new_user.strip(), "p": hashed}
                         )
                     st.success("Account created! Please login.")
                 except Exception:
@@ -114,17 +95,14 @@ if st.session_state.user_id is None:
 
     st.stop()
 
-# Logged-in dashboard
 st.success("You are logged in!")
+
 if st.button("Logout"):
     st.session_state.user_id = None
     st.rerun()
 
 st.header("How are you feeling today?")
-journal = st.text_area(
-    "Write about your thoughts and feelings",
-    height=150
-)
+journal = st.text_area("Write about your thoughts and feelings", height=150)
 
 recommendations = {
     "joy": [
@@ -163,60 +141,63 @@ if st.button("Analyze My Mood"):
     if not journal.strip():
         st.warning("Please write something first.")
     else:
-        with st.spinner("Analyzing your emotions..."):
-            model = load_model()
-            predictions = model(journal)[0]
-            top = max(predictions, key=lambda x: x["score"])
-            emotion = top["label"].lower()
+        try:
+            with st.spinner("Analyzing your emotions..."):
+                model = load_model()
+                predictions = model(journal, top_k=None)
 
-            vader = SentimentIntensityAnalyzer()
-            score = vader.polarity_scores(journal)["compound"]
-            sentiment = (
-                "Positive" if score >= 0.05
-                else "Negative" if score <= -0.05
-                else "Neutral"
-            )
+                if isinstance(predictions, list) and predictions and isinstance(predictions[0], list):
+                    predictions = predictions[0]
 
-            with engine.begin() as conn:
-                result = conn.execute(
-                    text("""
-                        INSERT INTO app_logs
-                        (user_id,journal,sentiment,emotion)
-                        VALUES (:uid,:j,:s,:e)
-                        RETURNING id
-                    """),
-                    {
-                        "uid": st.session_state.user_id,
-                        "j": journal,
-                        "s": sentiment,
-                        "e": emotion
-                    }
-                )
-                log_id = result.scalar_one()
+                top = max(predictions, key=lambda x: float(x["score"]))
+                emotion = top["label"].lower()
 
-                suggestions = recommendations.get(
-                    emotion, recommendations["joy"]
+                vader = SentimentIntensityAnalyzer()
+                score = vader.polarity_scores(journal)["compound"]
+
+                sentiment = (
+                    "Positive" if score >= 0.05
+                    else "Negative" if score <= -0.05
+                    else "Neutral"
                 )
 
-                for suggestion in suggestions:
-                    conn.execute(
+                with engine.begin() as conn:
+                    result = conn.execute(
                         text("""
-                            INSERT INTO app_recommendations
-                            (log_id,suggestion)
-                            VALUES (:lid,:s)
+                            INSERT INTO app_logs (user_id,journal,sentiment,emotion)
+                            VALUES (:uid,:j,:s,:e)
+                            RETURNING id
                         """),
-                        {"lid": log_id, "s": suggestion}
+                        {
+                            "uid": st.session_state.user_id,
+                            "j": journal,
+                            "s": sentiment,
+                            "e": emotion
+                        }
                     )
+                    log_id = result.scalar_one()
 
-            st.session_state.last_log_id = log_id
-            st.session_state.last_emotion = emotion
+                    for suggestion in recommendations.get(emotion, recommendations["joy"]):
+                        conn.execute(
+                            text("""
+                                INSERT INTO app_recommendations (log_id,suggestion)
+                                VALUES (:lid,:s)
+                            """),
+                            {"lid": log_id, "s": suggestion}
+                        )
 
-        st.subheader("Your Emotion Analysis")
-        st.write("Sentiment:", sentiment)
-        st.write("Primary emotion:", emotion.title())
-        st.write("Model confidence:", f"{top['score']:.2%}")
+                st.session_state.last_log_id = log_id
+                st.session_state.last_emotion = emotion
+                st.session_state.last_score = float(top["score"])
 
-# Recommendations and feedback
+            st.subheader("Your Emotion Analysis")
+            st.write("Sentiment:", sentiment)
+            st.write("Primary emotion:", emotion.title())
+            st.write("Model confidence:", f"{top['score']:.2%}")
+
+        except Exception as e:
+            st.error(f"Analysis failed: {e}")
+
 if "last_log_id" in st.session_state:
     st.subheader("Your Wellness Recommendations")
 
@@ -239,11 +220,7 @@ if "last_log_id" in st.session_state:
             if st.button("Accept", key=f"accept_{item.id}"):
                 with engine.begin() as conn:
                     conn.execute(
-                        text("""
-                            UPDATE app_recommendations
-                            SET feedback='accept'
-                            WHERE id=:rid
-                        """),
+                        text("UPDATE app_recommendations SET feedback='accept' WHERE id=:rid"),
                         {"rid": item.id}
                     )
                 st.success("Feedback saved!")
@@ -252,16 +229,11 @@ if "last_log_id" in st.session_state:
             if st.button("Reject", key=f"reject_{item.id}"):
                 with engine.begin() as conn:
                     conn.execute(
-                        text("""
-                            UPDATE app_recommendations
-                            SET feedback='reject'
-                            WHERE id=:rid
-                        """),
+                        text("UPDATE app_recommendations SET feedback='reject' WHERE id=:rid"),
                         {"rid": item.id}
                     )
                 st.info("Feedback saved!")
 
-# Personal history
 st.header("My Emotion History")
 
 with engine.connect() as conn:
@@ -277,14 +249,10 @@ with engine.connect() as conn:
 
 if history:
     for record in history:
-        with st.expander(
-            f"{record.emotion.title()} — {record.created_at}"
-        ):
+        with st.expander(f"{record.emotion.title()} — {record.created_at}"):
             st.write(record.journal)
             st.write("Sentiment:", record.sentiment)
 else:
     st.info("Your personal history will appear here.")
 
-st.caption(
-    "MoodMentor is a wellness support prototype, not a medical diagnosis tool."
-)
+st.caption("MoodMentor is a wellness support prototype, not a medical diagnosis tool.")
