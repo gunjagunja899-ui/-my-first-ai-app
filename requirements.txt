@@ -5,3 +5,5 @@ psycopg[binary]
 bcrypt
 python-jose[cryptography]
 vaderSentiment
+transformers
+torch
