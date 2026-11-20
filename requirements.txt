@@ -1,2 +1,7 @@
 streamlit==1.66.1
 google-genai
+sqlalchemy
+psycopg[binary]
+bcrypt
+python-jose[cryptography]
+vaderSentiment
