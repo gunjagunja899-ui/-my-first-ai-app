@@ -254,5 +254,57 @@ if history:
             st.write("Sentiment:", record.sentiment)
 else:
     st.info("Your personal history will appear here.")
+# ==============================
+# EMOTION TREND DASHBOARD
+# ==============================
 
+import pandas as pd
+
+st.divider()
+st.header("📊 Emotion Trend Dashboard")
+st.write("Track your emotional patterns over the last 30 days.")
+
+with engine.connect() as conn:
+    trend_data = conn.execute(
+        text("""
+            SELECT
+                created_at::date AS day,
+                emotion,
+                COUNT(*) AS total
+            FROM app_logs
+            WHERE user_id = :uid
+              AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY created_at::date, emotion
+            ORDER BY day
+        """),
+        {"uid": st.session_state.user_id}
+    ).fetchall()
+
+if trend_data:
+    df = pd.DataFrame([dict(row._mapping) for row in trend_data])
+
+    df["day"] = pd.to_datetime(df["day"])
+
+    st.subheader("Your Mood Over Time")
+
+    chart_data = df.pivot(
+        index="day",
+        columns="emotion",
+        values="total"
+    ).fillna(0)
+
+    st.line_chart(chart_data)
+
+    st.subheader("Emotion Summary")
+
+    emotion_summary = (
+        df.groupby("emotion")["total"]
+        .sum()
+        .sort_values(ascending=False)
+    )
+
+    st.bar_chart(emotion_summary)
+
+else:
+    st.info("No emotion data available yet. Analyze your mood to see trends.")
 st.caption("MoodMentor is a wellness support prototype, not a medical diagnosis tool.")
