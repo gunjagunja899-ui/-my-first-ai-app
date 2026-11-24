@@ -449,3 +449,58 @@ if weekly_rows:
 
 else:
     st.info("No mood entries found for the last 7 days. Start tracking your emotions!")
+
+# ==============================
+# PERSONALIZED WELLNESS ACTION PLAN
+# ==============================
+
+st.divider()
+st.header("🌱 My Daily Wellness Action Plan")
+st.write("Choose activities and track your daily wellness progress.")
+
+wellness_tasks = [
+    "Practice 5 minutes of mindfulness",
+    "Take a 10-minute walk",
+    "Drink enough water",
+    "Take a short screen break",
+    "Write down three things you are grateful for",
+    "Connect with a friend or colleague"
+]
+
+if "wellness_completed" not in st.session_state:
+    st.session_state.wellness_completed = []
+
+st.subheader("Today's Wellness Goals")
+
+completed_count = 0
+
+for i, task in enumerate(wellness_tasks):
+    checked = st.checkbox(
+        task,
+        value=task in st.session_state.wellness_completed,
+        key=f"wellness_task_{i}"
+    )
+
+    if checked:
+        if task not in st.session_state.wellness_completed:
+            st.session_state.wellness_completed.append(task)
+    else:
+        if task in st.session_state.wellness_completed:
+            st.session_state.wellness_completed.remove(task)
+
+completed_count = len(st.session_state.wellness_completed)
+total_tasks = len(wellness_tasks)
+
+progress = completed_count / total_tasks
+
+st.subheader("📈 Daily Progress")
+st.progress(progress)
+
+st.write(f"You completed {completed_count} out of {total_tasks} wellness goals.")
+
+if completed_count == total_tasks:
+    st.success("Amazing! You completed all your wellness goals today! 🎉")
+elif completed_count > 0:
+    st.info("Great progress! Keep taking care of yourself. 🌿")
+else:
+    st.info("Start with one small wellness activity today.")
