@@ -373,3 +373,79 @@ if insight_rows:
 
 else:
     st.info("Start analysing your mood to unlock personal insights!")
+
+# ==============================
+# WEEKLY MOOD REPORT
+# ==============================
+
+st.divider()
+st.header("📅 Your Weekly Mood Report")
+st.caption("A summary of your emotional activity over the last 7 days.")
+
+with engine.connect() as conn:
+    weekly_rows = conn.execute(
+        text("""
+            SELECT emotion, sentiment, created_at
+            FROM app_logs
+            WHERE user_id = :uid
+            AND created_at >= CURRENT_DATE - INTERVAL '6 days'
+            ORDER BY created_at DESC
+        """),
+        {"uid": st.session_state.user_id}
+    ).fetchall()
+
+if weekly_rows:
+    weekly_df = pd.DataFrame(
+        [dict(row._mapping) for row in weekly_rows]
+    )
+
+    weekly_df["created_at"] = pd.to_datetime(
+        weekly_df["created_at"]
+    )
+
+    total = len(weekly_df)
+    common = weekly_df["emotion"].mode().iloc[0].title()
+    days = weekly_df["created_at"].dt.date.nunique()
+
+    positive = (
+        weekly_df["sentiment"].astype(str).str.lower()
+        == "positive"
+    ).sum()
+
+    negative = (
+        weekly_df["sentiment"].astype(str).str.lower()
+        == "negative"
+    ).sum()
+
+    neutral = total - positive - negative
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Weekly Entries", total)
+    c2.metric("Active Days", days)
+    c3.metric("Most Common Emotion", common)
+
+    st.subheader("Weekly Sentiment Summary")
+
+    sentiment_data = pd.Series({
+        "Positive": positive,
+        "Neutral": neutral,
+        "Negative": negative
+    })
+
+    st.bar_chart(sentiment_data)
+
+    st.subheader("Emotion Frequency")
+    st.bar_chart(weekly_df["emotion"].value_counts())
+
+    st.subheader("📝 Your Weekly Reflection")
+
+    st.info(
+        f"You recorded {total} mood entries across {days} days. "
+        f"Your most frequently detected emotion was {common}. "
+        f"Positive entries: {positive}, "
+        f"Neutral entries: {neutral}, "
+        f"Negative entries: {negative}."
+    )
+
+else:
+    st.info("No mood entries found for the last 7 days. Start tracking your emotions!")
