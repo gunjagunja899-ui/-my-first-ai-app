@@ -308,3 +308,68 @@ if trend_data:
 else:
     st.info("No emotion data available yet. Analyze your mood to see trends.")
 st.caption("MoodMentor is a wellness support prototype, not a medical diagnosis tool.")
+
+# ==============================
+# PERSONAL WELLNESS INSIGHTS
+# ==============================
+
+st.divider()
+st.header("🌟 Your Personal Wellness Insights")
+
+with engine.connect() as conn:
+    insight_rows = conn.execute(
+        text("""
+            SELECT emotion, sentiment, created_at
+            FROM app_logs
+            WHERE user_id = :uid
+            ORDER BY created_at DESC
+        """),
+        {"uid": st.session_state.user_id}
+    ).fetchall()
+
+if insight_rows:
+    insight_df = pd.DataFrame(
+        [dict(row._mapping) for row in insight_rows]
+    )
+
+    total_entries = len(insight_df)
+    top_emotion = insight_df["emotion"].mode().iloc[0].title()
+    active_days = insight_df["created_at"].dt.date.nunique()
+    latest_emotion = insight_df.iloc[0]["emotion"].title()
+
+    col1, col2 = st.columns(2)
+    col3, col4 = st.columns(2)
+
+    col1.metric("Total Mood Entries", total_entries)
+    col2.metric("Most Frequent Emotion", top_emotion)
+    col3.metric("Active Days", active_days)
+    col4.metric("Latest Emotion", latest_emotion)
+
+    st.subheader("📊 Sentiment Breakdown")
+
+    sentiment_counts = (
+        insight_df["sentiment"]
+        .value_counts()
+    )
+
+    st.bar_chart(sentiment_counts)
+
+    st.subheader("🧠 Emotion Distribution")
+
+    emotion_counts = (
+        insight_df["emotion"]
+        .value_counts()
+    )
+
+    st.bar_chart(emotion_counts)
+
+    st.subheader("💡 Personal Insight")
+
+    st.info(
+        f"You have recorded {total_entries} mood entries. "
+        f"Your most frequently detected emotion is {top_emotion}. "
+        f"You have tracked your emotions across {active_days} days."
+    )
+
+else:
+    st.info("Start analysing your mood to unlock personal insights!")
