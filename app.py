@@ -547,3 +547,80 @@ elif completed_count > 0:
     st.success("Great progress! Keep going! 🌿")
 else:
     st.info("Start with one small wellness activity today.")
+
+# ==============================
+# EMOTION-BASED PERSONALIZED RECOMMENDATIONS
+# ==============================
+
+st.divider()
+st.header("💚 Personalized Wellness Recommendations")
+st.write("Wellness suggestions based on your latest detected emotion.")
+
+emotion_tips = {
+    "joy": [
+        "Write down three things you are grateful for.",
+        "Share your happiness with someone you trust.",
+        "Celebrate a small achievement today."
+    ],
+    "sadness": [
+        "Talk to a trusted friend or colleague.",
+        "Take a gentle walk in fresh air.",
+        "Try writing down how you feel."
+    ],
+    "anger": [
+        "Take a short break before responding to stressful situations.",
+        "Try slow and steady breathing.",
+        "Step away briefly and return when you feel ready."
+    ],
+    "fear": [
+        "Try a grounding exercise: notice five things around you.",
+        "Break a difficult task into smaller steps.",
+        "Talk with someone you trust about your concerns."
+    ],
+    "love": [
+        "Express appreciation to someone important to you.",
+        "Spend quality time with people you care about.",
+        "Write a positive message to someone."
+    ],
+    "surprise": [
+        "Take a moment to reflect on what happened.",
+        "Write down your thoughts and feelings.",
+        "Give yourself time to adjust to unexpected changes."
+    ]
+}
+
+with engine.connect() as conn:
+    latest_emotion = conn.execute(
+        text("""
+            SELECT emotion
+            FROM app_logs
+            WHERE user_id = :uid
+            ORDER BY created_at DESC
+            LIMIT 1
+        """),
+        {"uid": st.session_state.user_id}
+    ).fetchone()
+
+if latest_emotion:
+    emotion = str(latest_emotion[0]).lower()
+
+    st.subheader(f"Your latest emotion: {emotion.title()}")
+
+    tips = emotion_tips.get(
+        emotion,
+        [
+            "Take a short mindful break.",
+            "Write down your thoughts.",
+            "Connect with someone you trust."
+        ]
+    )
+
+    for i, tip in enumerate(tips, 1):
+        st.success(f"🌱 {tip}")
+
+else:
+    st.info("Analyze your mood first to receive personalized suggestions.")
+
+st.caption(
+    "These suggestions support personal reflection and are not medical advice."
+)
