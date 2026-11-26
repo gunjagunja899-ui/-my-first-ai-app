@@ -624,3 +624,24 @@ else:
 st.caption(
     "These suggestions support personal reflection and are not medical advice."
 )
+
+# ==============================
+# EMPLOYEE STRESS LEVEL TRACKER
+# ==============================
+
+st.divider()
+st.header("🧠 Daily Stress Level Tracker")
+
+st.write("Record how stressed you feel today.")
+
+with engine.begin() as conn:
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS app_stress_logs (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            stress_level INTEGER NOT NULL,
+            notes TEXT,
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, (recorded_at::date))
+        )
+    """))
