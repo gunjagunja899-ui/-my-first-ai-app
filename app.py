@@ -451,7 +451,9 @@ else:
     st.info("No mood entries found for the last 7 days. Start tracking your emotions!")
 
 # ==============================
-# PERSONALIZED WELLNESS ACTION PLAN
+
+# ==============================
+# DAILY WELLNESS PLAN - DATABASE
 # ==============================
 
 st.divider()
@@ -467,8 +469,35 @@ wellness_tasks = [
     "Connect with a friend or colleague"
 ]
 
-if "wellness_completed" not in st.session_state:
-    st.session_state.wellness_completed = []
+with engine.begin() as conn:
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS app_wellness_tasks (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            task_date DATE NOT NULL DEFAULT CURRENT_DATE,
+            task_name TEXT NOT NULL,
+            completed BOOLEAN NOT NULL DEFAULT FALSE,
+            UNIQUE(user_id, task_date, task_name)
+        )
+    """))
+
+uid = st.session_state.user_id
+
+with engine.connect() as conn:
+    saved_rows = conn.execute(
+        text("""
+            SELECT task_name, completed
+            FROM app_wellness_tasks
+            WHERE user_id = :uid
+            AND task_date = CURRENT_DATE
+        """),
+        {"uid": uid}
+    ).fetchall()
+
+saved_tasks = {
+    row.task_name: row.completed
+    for row in saved_rows
+}
 
 st.subheader("Today's Wellness Goals")
 
@@ -477,30 +506,44 @@ completed_count = 0
 for i, task in enumerate(wellness_tasks):
     checked = st.checkbox(
         task,
-        value=task in st.session_state.wellness_completed,
-        key=f"wellness_task_{i}"
+        value=bool(saved_tasks.get(task, False)),
+        key=f"daily_wellness_{uid}_{i}"
     )
 
+    if checked != bool(saved_tasks.get(task, False)):
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO app_wellness_tasks
+                    (user_id, task_date, task_name, completed)
+                    VALUES (:uid, CURRENT_DATE, :task, :completed)
+                    ON CONFLICT (user_id, task_date, task_name)
+                    DO UPDATE SET completed = EXCLUDED.completed
+                """),
+                {
+                    "uid": uid,
+                    "task": task,
+                    "completed": checked
+                }
+            )
+
     if checked:
-        if task not in st.session_state.wellness_completed:
-            st.session_state.wellness_completed.append(task)
-    else:
-        if task in st.session_state.wellness_completed:
-            st.session_state.wellness_completed.remove(task)
+        completed_count += 1
 
-completed_count = len(st.session_state.wellness_completed)
 total_tasks = len(wellness_tasks)
-
 progress = completed_count / total_tasks
 
 st.subheader("📈 Daily Progress")
 st.progress(progress)
 
-st.write(f"You completed {completed_count} out of {total_tasks} wellness goals.")
+st.write(
+    f"You completed {completed_count} out of "
+    f"{total_tasks} wellness goals."
+)
 
 if completed_count == total_tasks:
-    st.success("Amazing! You completed all your wellness goals today! 🎉")
+    st.success("Amazing! All daily wellness goals completed! 🎉")
 elif completed_count > 0:
-    st.info("Great progress! Keep taking care of yourself. 🌿")
+    st.success("Great progress! Keep going! 🌿")
 else:
     st.info("Start with one small wellness activity today.")
