@@ -626,6 +626,8 @@ st.caption(
 )
 
 # ==============================
+
+# ==============================
 # EMPLOYEE STRESS LEVEL TRACKER
 # ==============================
 
@@ -641,7 +643,65 @@ with engine.begin() as conn:
             user_id INTEGER NOT NULL,
             stress_level INTEGER NOT NULL,
             notes TEXT,
-            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, (recorded_at::date))
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """))
+
+uid = st.session_state.user_id
+
+with engine.connect() as conn:
+    today_stress = conn.execute(
+        text("""
+            SELECT stress_level, notes, recorded_at
+            FROM app_stress_logs
+            WHERE user_id = :uid
+              AND recorded_at::date = CURRENT_DATE
+            ORDER BY recorded_at DESC
+            LIMIT 1
+        """),
+        {"uid": uid}
+    ).fetchone()
+
+if today_stress:
+    st.info(
+        f"Today's latest stress level: "
+        f"{today_stress.stress_level}/10"
+    )
+else:
+    st.write("You have not recorded your stress level today.")
+
+with st.form("stress_tracker_form"):
+    stress_level = st.slider(
+        "How stressed do you feel today?",
+        min_value=1,
+        max_value=10,
+        value=5
+    )
+
+    stress_notes = st.text_area(
+        "What may be causing your stress? (Optional)"
+    )
+
+    save_stress = st.form_submit_button("Save Stress Level")
+
+if save_stress:
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO app_stress_logs
+                (user_id, stress_level, notes)
+                VALUES (:uid, :level, :notes)
+            """),
+            {
+                "uid": uid,
+                "level": stress_level,
+                "notes": stress_notes
+            }
+        )
+
+    st.success("Your stress level has been saved successfully! 🌿")
+    st.rerun()
+
+st.caption(
+    "This is a self-reported wellness tracker, not a medical diagnosis."
+)
