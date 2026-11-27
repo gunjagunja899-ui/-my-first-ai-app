@@ -705,3 +705,52 @@ if save_stress:
 st.caption(
     "This is a self-reported wellness tracker, not a medical diagnosis."
 )
+
+# ==============================
+# STRESS HISTORY DASHBOARD
+# ==============================
+
+st.divider()
+st.header("📊 Stress History Dashboard")
+
+uid = st.session_state.user_id
+
+with engine.connect() as conn:
+    stress_history = conn.execute(
+        text("""
+            SELECT stress_level, notes, recorded_at
+            FROM app_stress_logs
+            WHERE user_id = :uid
+            ORDER BY recorded_at DESC
+            LIMIT 30
+        """),
+        {"uid": uid}
+    ).fetchall()
+
+if stress_history:
+    levels = [row.stress_level for row in reversed(stress_history)]
+
+    average_stress = sum(levels) / len(levels)
+    highest_stress = max(levels)
+
+    col1, col2 = st.columns(2)
+
+    col1.metric("Average Stress", f"{average_stress:.1f}/10")
+    col2.metric("Highest Stress", f"{highest_stress}/10")
+
+    st.subheader("Stress Level Trend")
+    st.line_chart({"Stress Level": levels})
+
+    st.subheader("Previous Stress Records")
+
+    st.dataframe([
+        {
+            "Date": str(row.recorded_at),
+            "Stress Level": f"{row.stress_level}/10",
+            "Notes": row.notes or "No notes"
+        }
+        for row in stress_history
+    ], use_container_width=True)
+
+else:
+    st.info("No stress history available yet.")
