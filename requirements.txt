@@ -5,5 +5,5 @@ psycopg[binary]
 bcrypt
 python-jose[cryptography]
 vaderSentiment
-transformers
+transformers==4.57.1
 torch
